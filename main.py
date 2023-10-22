@@ -126,5 +126,4 @@ if __name__ == "__main__":
         port=9000,
         reload=True,
         workers=1,
-        debug=True,
     )
