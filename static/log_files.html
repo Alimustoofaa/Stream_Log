@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Log Files List</title>
+</head>
+<body>
+    <h1>List Log {{year}}/{{month}}/{{day}}</h1>
+    <ul>
+        {% for log_file in log_files %}
+            <li><a href="{{ log_file }}">{{ log_file }}</a></li>
+        {% endfor %}
+    </ul>
+</body>
+</html>

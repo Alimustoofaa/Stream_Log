@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Log Files List</title>
+</head>
+<body>
+    <div class="flex items-center py-2 px-3">
+        <h1 class="text-3xl text-slate-300">{{context.title}}</h1>
+    </div>
+    <br />
+    <div class="flex items-center py-2 px-3" style="font-size: 12px;">
+        <div id="logs" class="full-window" style="overflow-y: auto;">
+            reading logs...
+        </div>
+    </div>
+</body>
+<script>
+    var currentLocation = window.location.href;
+    var wsURL = "ws://" + window.location.hostname + ":" + window.location.port + "/ws/log";
+
+    var wsLog = new WebSocket(wsURL);
+
+    wsLog.onmessage = function (event) {
+        var logs = document.getElementById("logs");
+        var log_data = event.data;
+        logs.innerHTML = log_data;
+        logs.scrollTop =logs.scrollHeight;
+
+    };
+</script>
+</html>
