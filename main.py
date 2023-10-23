@@ -42,6 +42,7 @@ async def log_reader(n=5) -> list:
             elif line.__contains__('jpg'):
                 image_path = line.split(":")[-1].strip()
                 image_path = image_path.replace(base_image_dir, '')
+                image_path = image_path.replace('//', '/')
                 log_lines.append(f'<a href="{image_path}" target="_blank">{line}</a><br/>')
             else:
                 log_lines.append(f"{line}<br/>")
