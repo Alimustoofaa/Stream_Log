@@ -33,6 +33,8 @@ async def log_reader(n=5) -> list:
         list: List containing last n-lines in log file with html tags.
     """
     log_lines = []
+    if not log_file:
+        return "None"
     with open(f"{base_log_dir}/{log_file}", "r") as file:
         for line in file.readlines():
             if line.__contains__("ERROR"):
@@ -51,6 +53,9 @@ async def log_reader(n=5) -> list:
 
 @app.get("/")
 async def get(request: Request) -> templates.TemplateResponse:
+    global log_file
+    log_file = "logging.log"
+
     context = {"title": "SMARTCAM Log Viewer", "log_file": log_file}
     return templates.TemplateResponse("index.html", {"request": request, "context": context})
 
@@ -65,8 +70,7 @@ async def get(
     date_directory = f'{base_log_dir}/{year}/{month}/{day}'
     if not os.path.isdir(date_directory):
         return {"error": "Date directory not found"}
-    log_files = [str(file.replace(base_log_dir, '')) for file in glob.glob(f"{date_directory}/*.log")]
-    print(log_files)
+    log_files = [str(file.replace(base_log_dir, '')) for file in sorted(glob.glob(f"{date_directory}/*.log"))]
     return templates.TemplateResponse(
         "log_files.html",
         {"request": request, "year": year, "month": month, "day": day, "log_files": log_files},
@@ -80,8 +84,8 @@ async def get(
         name: str,
         request: Request
     ) -> templates.TemplateResponse:
+    global log_file
     log_file  = f'/{year}/{month}/{day}/{name}'
-    
     context = {"title": "SMARTCAM Log Viewer", "log_file": log_file}
     return templates.TemplateResponse("index.html", {"request": request, "context": context})
 
