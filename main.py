@@ -59,14 +59,16 @@ async def log_reader(log_file_path: str, n=100) -> str:
         is_json_file = False
         json_file_path = None
         
-        if 'jpg' in line:
-            is_image = True
+        if '.jpg' in line.lower() and 'path' in line.lower():
             image_path_raw = line.split(":")[-1].strip()
-            image_path = image_path_raw.replace(base_image_dir, '').replace('//', '/')
+            if not any(c in image_path_raw for c in ['"', '{', '}']):
+                is_image = True
+                image_path = image_path_raw.replace(base_image_dir, '').replace('//', '/')
         elif '.json' in line and 'path' in line.lower():
-            is_json_file = True
             json_path_raw = line.split(":")[-1].strip()
-            json_file_path = json_path_raw.replace(base_image_dir, '').replace('//', '/')
+            if not any(c in json_path_raw for c in ['"', '{', '}']):
+                is_json_file = True
+                json_file_path = json_path_raw.replace(base_image_dir, '').replace('//', '/')
             
         json_data = None
         message = line.strip()
