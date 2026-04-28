@@ -618,10 +618,10 @@
 
                     html += `
                         <div id="row-${id}" onclick="toggleBookmark('${id}', event)" class="log-entry-row flex flex-col w-full px-2 sm:px-4 py-1.5 sm:py-2 log-row border-l-4 ${barClass} ${isBookmarked} cursor-pointer" data-level="${log.level}" data-raw="${escapedRaw}">
-                            <div class="flex flex-col md:flex-row md:items-start w-full font-mono text-[11px] md:text-[13px] leading-relaxed">
+                            <div class="flex flex-col md:flex-row md:items-start w-full font-mono text-[9px] sm:text-[11px] md:text-[13px] leading-relaxed">
                                 <div class="flex items-center shrink-0 w-full md:w-24 pt-0.5 mb-1 md:mb-0">
                                     ${chevron}
-                                    <span class="text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${badgeClass}">${log.level}</span>
+                                    <span class="text-[8px] md:text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${badgeClass}">${log.level}</span>
                                 </div>
                                 <div class="flex-grow break-all ml-4 md:ml-0 md:pl-2 text-grafana-text">
                                     ${messageHtml}
