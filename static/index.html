@@ -1,31 +1,672 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Log Files List</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grafana-Style Log Viewer</title>
+    <script src="/static/js/tailwindcss.js"></script>
+    <script src="/static/js/chart.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        grafana: {
+                            bg: 'var(--color-bg)',
+                            panel: 'var(--color-panel)',
+                            border: 'var(--color-border)',
+                            text: 'var(--color-text)',
+                            strong: 'var(--color-strong)',
+                            muted: 'var(--color-muted)',
+                            info: '#3274d9',
+                            warn: '#e0b400',
+                            error: '#e02f44',
+                            hover: 'var(--color-hover)'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+                        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --color-bg: #f4f5f5;
+            --color-panel: #ffffff;
+            --color-border: #e4e7eb;
+            --color-text: #202226;
+            --color-strong: #000000;
+            --color-muted: #6e7479;
+            --color-hover: #f8f9fa;
+        }
+
+        html.dark {
+            --color-bg: #111217;
+            --color-panel: #181b1f;
+            --color-border: #22252b;
+            --color-text: #ccccdc;
+            --color-strong: #ffffff;
+            --color-muted: #8e8e93;
+            --color-hover: #1f2228;
+        }
+
+        body { background-color: var(--color-bg); color: var(--color-text); }
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-track { background: var(--color-bg); }
+        ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 5px; border: 2px solid var(--color-bg); }
+        ::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }
+        .log-row { border-top: 1px solid var(--color-border); }
+        .log-row:hover { background-color: var(--color-hover); }
+        .log-badge-info { color: #8bb3f4; background: rgba(50,116,217,0.15); border: 1px solid rgba(50,116,217,0.3); }
+        .log-badge-warning { color: #f2cc0c; background: rgba(224,180,0,0.15); border: 1px solid rgba(224,180,0,0.3); }
+        .log-badge-error { color: #ff7383; background: rgba(224,47,68,0.15); border: 1px solid rgba(224,47,68,0.3); }
+        
+        .log-bar-info { border-left-color: #3274d9; }
+        .log-bar-warning { border-left-color: #e0b400; }
+        .log-bar-error { border-left-color: #e02f44; }
+        .log-bookmarked { background-color: rgba(50,116,217,0.1) !important; border-left-width: 6px !important; }
+    </style>
 </head>
-<body>
-    <div class="flex items-center py-2 px-3">
-        <h1 class="text-3xl text-slate-300">{{context.title}}</h1>
-    </div>
-    <br />
-    <div class="flex items-center py-2 px-3" style="font-size: 12px;">
-        <div id="logs" class="full-window" style="overflow-y: auto;">
-            reading logs...
+<body class="min-h-screen flex flex-col antialiased relative">
+    <!-- Image Modal -->
+    <div id="image-modal" class="fixed inset-0 z-[100] hidden bg-black/90 flex flex-col backdrop-blur-sm">
+        <div class="flex justify-between items-center p-4 bg-grafana-bg border-b border-grafana-border shrink-0">
+            <h3 class="text-grafana-strong font-medium text-sm">Image Viewer</h3>
+            <div class="flex items-center gap-2">
+                <button onclick="zoomIn()" class="p-1.5 text-grafana-muted hover:text-grafana-strong bg-grafana-panel border border-grafana-border rounded transition-colors" title="Zoom In">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg>
+                </button>
+                <button onclick="zoomOut()" class="p-1.5 text-grafana-muted hover:text-grafana-strong bg-grafana-panel border border-grafana-border rounded transition-colors" title="Zoom Out">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7"></path></svg>
+                </button>
+                <button onclick="resetZoom()" class="p-1.5 text-grafana-muted hover:text-grafana-strong bg-grafana-panel border border-grafana-border rounded transition-colors" title="Reset Zoom">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                </button>
+                <div class="w-px h-6 bg-grafana-border mx-1"></div>
+                <button onclick="closeImageModal()" class="p-1.5 text-red-400 hover:text-red-300 bg-grafana-panel border border-grafana-border rounded transition-colors" title="Close">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+        </div>
+        <div class="flex-grow relative overflow-hidden flex items-center justify-center cursor-grab" id="image-container">
+            <img id="modal-image" src="" class="max-w-none transition-transform duration-75 origin-center select-none" style="transform: scale(1) translate(0px, 0px);" draggable="false">
         </div>
     </div>
+
+    <!-- File Modal (JSON viewer) -->
+    <div id="file-modal" class="fixed inset-0 z-[100] hidden bg-black/90 flex flex-col backdrop-blur-sm">
+        <div class="flex justify-between items-center p-4 bg-grafana-bg border-b border-grafana-border shrink-0">
+            <h3 class="text-grafana-strong font-medium text-sm flex items-center gap-2">
+                <svg class="w-4 h-4 text-grafana-warn" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                JSON Viewer
+            </h3>
+            <div class="flex items-center gap-2">
+                <button onclick="copyFileModal()" class="flex items-center gap-1 p-1.5 px-3 text-grafana-muted hover:text-grafana-strong bg-grafana-panel border border-grafana-border rounded transition-colors" title="Copy to clipboard" id="btn-copy-file">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                    <span class="text-xs font-sans">Copy</span>
+                </button>
+                <div class="w-px h-6 bg-grafana-border mx-1"></div>
+                <button onclick="closeFileModal()" class="p-1.5 text-red-400 hover:text-red-300 bg-grafana-panel border border-grafana-border rounded transition-colors" title="Close">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+        </div>
+        <div class="flex-grow relative overflow-auto bg-grafana-panel p-6">
+            <pre id="file-modal-content" class="text-xs font-mono text-grafana-text"></pre>
+        </div>
+    </div>
+
+    <!-- Top Navigation Bar -->
+    <header class="border-b border-grafana-border bg-grafana-bg h-14 flex items-center justify-between px-4 shrink-0">
+        <div class="flex items-center gap-4">
+            <a href="/history" class="text-grafana-muted hover:text-grafana-strong transition-colors" title="Browse History">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </a>
+            <input type="date" id="date-picker" onchange="goToDate(this.value)" class="bg-grafana-panel border border-grafana-border text-grafana-muted text-xs rounded px-2 py-1 focus:outline-none focus:border-grafana-info transition-colors cursor-pointer" title="Jump to Date">
+            
+            <button onclick="toggleTheme()" class="p-1.5 text-grafana-muted hover:text-grafana-strong transition-colors bg-grafana-panel border border-grafana-border rounded ml-2" title="Toggle Theme">
+                <svg id="icon-theme-light" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                <svg id="icon-theme-dark" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+            </button>
+            <div class="h-6 w-px bg-grafana-border mx-2"></div>
+
+            <svg class="w-6 h-6 text-grafana-warn" viewBox="0 0 24 24" fill="currentColor">
+                <!-- A placeholder icon looking a bit like Grafana -->
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/>
+            </svg>
+            <h1 class="text-sm font-semibold tracking-wide text-grafana-strong">Explore Logs</h1>
+            <div class="h-6 w-px bg-grafana-border mx-2"></div>
+            <span class="text-xs font-mono text-grafana-muted bg-grafana-panel px-2 py-1 border border-grafana-border rounded" title="{{context.log_file}}">
+                {{context.log_file}}
+            </span>
+        </div>
+        <div class="flex items-center gap-3">
+            <button id="btn-pause" onclick="togglePause()" class="flex items-center gap-1.5 px-2 py-1 bg-grafana-panel border border-grafana-border rounded hover:bg-grafana-hover transition-colors">
+                <svg id="icon-pause" class="w-3 h-3 text-grafana-muted" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                <span id="text-pause" class="text-xs font-medium text-grafana-muted">Pause</span>
+            </button>
+            <div class="flex items-center gap-2 text-xs">
+                <span class="relative flex h-2 w-2">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" id="ping-dot"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" id="status-dot"></span>
+                </span>
+                <span class="text-grafana-muted font-medium">Live</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Query/Filter Bar -->
+    <div class="border-b border-grafana-border bg-grafana-panel px-4 py-3 shrink-0 flex items-center gap-4">
+        <div class="flex-grow flex items-center relative">
+            <svg class="w-4 h-4 absolute left-3 text-grafana-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+            <input type="text" id="search-input" placeholder="Filter by message..." class="w-full bg-grafana-bg border border-grafana-border text-grafana-text text-sm rounded px-10 py-1.5 focus:outline-none focus:border-grafana-info focus:ring-1 focus:ring-grafana-info transition-all font-mono">
+        </div>
+        <div class="flex gap-1 bg-grafana-bg p-0.5 rounded border border-grafana-border shrink-0">
+            <button onclick="toggleLevel('info')" id="btn-info" class="px-3 py-1 text-xs font-medium rounded log-badge-info opacity-50 hover:opacity-100 transition-opacity">Info</button>
+            <button onclick="toggleLevel('warning')" id="btn-warning" class="px-3 py-1 text-xs font-medium rounded log-badge-warning opacity-50 hover:opacity-100 transition-opacity">Warning</button>
+            <button onclick="toggleLevel('error')" id="btn-error" class="px-3 py-1 text-xs font-medium rounded log-badge-error opacity-50 hover:opacity-100 transition-opacity">Error</button>
+        </div>
+        <button onclick="clearFilters()" class="text-xs text-grafana-info hover:text-blue-400 transition-colors">Clear</button>
+        <button onclick="exportLogs()" class="text-xs flex items-center gap-1 text-grafana-muted hover:text-grafana-strong transition-colors bg-grafana-panel border border-grafana-border px-2 py-1 rounded ml-2">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            Export CSV
+        </button>
+    </div>
+    
+    <!-- Log Volume Chart -->
+    <div class="h-16 px-4 py-1 border-b border-grafana-border bg-grafana-bg shrink-0">
+        <canvas id="volumeChart"></canvas>
+    </div>
+
+    <!-- Logs Container -->
+    <main class="flex-grow overflow-y-auto bg-grafana-bg flex flex-col relative" id="logs-container">
+        <div class="flex items-center justify-center h-full text-grafana-muted text-sm" id="loading-state">
+            Waiting for logs...
+        </div>
+        <!-- Logs will be appended here -->
+        <div id="logs-list" class="flex flex-col w-full pb-4"></div>
+    </main>
+
+    <script>
+        var logFileName = "{{context.log_file}}";
+        var protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
+        var wsURL = protocol + window.location.host + "/ws/log?file=" + encodeURIComponent(logFileName);
+
+        var wsLog = new WebSocket(wsURL);
+        var logsList = document.getElementById("logs-list");
+        var logsContainer = document.getElementById("logs-container");
+        var searchInput = document.getElementById("search-input");
+        var loadingState = document.getElementById("loading-state");
+        var statusDot = document.getElementById("status-dot");
+        var pingDot = document.getElementById("ping-dot");
+
+        var activeLevels = { info: true, warning: true, error: true };
+        var activeJsonState = {};
+        var lastPayload = "";
+
+        // Image Modal Logic
+        var imageModal = document.getElementById('image-modal');
+        var modalImage = document.getElementById('modal-image');
+        var imageContainer = document.getElementById('image-container');
+        
+        var currentZoom = 1;
+        var currentX = 0;
+        var currentY = 0;
+        var isDragging = false;
+        var startX = 0;
+        var startY = 0;
+
+        function updateImageTransform() {
+            modalImage.style.transform = `translate(${currentX}px, ${currentY}px) scale(${currentZoom})`;
+        }
+
+        function openImageModal(src) {
+            modalImage.src = src;
+            imageModal.classList.remove('hidden');
+            resetZoom();
+        }
+
+        function closeImageModal() {
+            imageModal.classList.add('hidden');
+            modalImage.src = '';
+        }
+
+        function resetZoom() {
+            currentZoom = 1;
+            currentX = 0;
+            currentY = 0;
+            updateImageTransform();
+        }
+
+        function zoomIn() {
+            currentZoom = Math.min(currentZoom * 1.25, 10);
+            updateImageTransform();
+        }
+
+        function zoomOut() {
+            currentZoom = Math.max(currentZoom / 1.25, 0.1);
+            updateImageTransform();
+        }
+
+        imageContainer.addEventListener('wheel', function(e) {
+            e.preventDefault();
+            if (e.deltaY < 0) {
+                zoomIn();
+            } else {
+                zoomOut();
+            }
+        });
+
+        imageContainer.addEventListener('mousedown', function(e) {
+            if (e.button !== 0) return; // Only left click
+            isDragging = true;
+            startX = e.clientX - currentX;
+            startY = e.clientY - currentY;
+            imageContainer.style.cursor = 'grabbing';
+        });
+
+        window.addEventListener('mousemove', function(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+            currentX = e.clientX - startX;
+            currentY = e.clientY - startY;
+            updateImageTransform();
+        });
+
+        window.addEventListener('mouseup', function() {
+            if (isDragging) {
+                isDragging = false;
+                imageContainer.style.cursor = 'grab';
+            }
+        });
+
+        // File Modal Logic
+        var fileModal = document.getElementById('file-modal');
+        var fileModalContent = document.getElementById('file-modal-content');
+        
+        async function openJsonModal(path) {
+            fileModalContent.innerText = "Loading...";
+            fileModal.classList.remove('hidden');
+            try {
+                // Ensure the path is prefixed with / if it isn't already
+                var fetchPath = path.startsWith('/') ? path : '/' + path;
+                var res = await fetch(fetchPath);
+                if (res.ok) {
+                    var data = await res.json();
+                    fileModalContent.innerText = JSON.stringify(data, null, 2);
+                } else {
+                    fileModalContent.innerText = "Error: Could not load file. " + res.statusText;
+                }
+            } catch (e) {
+                fileModalContent.innerText = "Error: " + e.message;
+            }
+        }
+        
+        function closeFileModal() {
+            fileModal.classList.add('hidden');
+            fileModalContent.innerText = '';
+        }
+        
+        function copyFileModal() {
+            navigator.clipboard.writeText(fileModalContent.innerText).then(() => {
+                var btn = document.getElementById('btn-copy-file');
+                var originalHtml = btn.innerHTML;
+                btn.innerHTML = '<svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><span class="text-xs font-sans text-emerald-400">Copied</span>';
+                setTimeout(() => { btn.innerHTML = originalHtml; }, 2000);
+            });
+        }
+
+        // --- Chart Logic ---
+        var chartDataInfo = Array(60).fill(0);
+        var chartDataWarn = Array(60).fill(0);
+        var chartDataErr = Array(60).fill(0);
+        var chartLabels = Array(60).fill('');
+        var lastSeenId = null;
+
+        var ctx = document.getElementById('volumeChart').getContext('2d');
+        var volumeChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: chartLabels,
+                datasets: [
+                    { label: 'Error', data: chartDataErr, backgroundColor: '#e02f44', barPercentage: 1.0, categoryPercentage: 1.0, order: 1 },
+                    { label: 'Warning', data: chartDataWarn, backgroundColor: '#e0b400', barPercentage: 1.0, categoryPercentage: 1.0, order: 2 },
+                    { label: 'Info', data: chartDataInfo, backgroundColor: '#3274d9', barPercentage: 1.0, categoryPercentage: 1.0, order: 3 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 0 },
+                scales: {
+                    x: { stacked: true, display: false },
+                    y: { stacked: true, display: false, beginAtZero: true, suggestedMax: 5 }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: false }
+                },
+                layout: { padding: 0 }
+            }
+        });
+
+        // Simple hash function for keeping track of open states
+        function hashStr(str) {
+            var hash = 0;
+            if (str.length === 0) return hash;
+            for (var i = 0; i < str.length; i++) {
+                var char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash;
+            }
+            return Math.abs(hash);
+        }
+
+        // Theme toggle logic
+        function updateThemeIcon(isDark) {
+            document.getElementById('icon-theme-light').style.display = isDark ? 'none' : 'block';
+            document.getElementById('icon-theme-dark').style.display = isDark ? 'block' : 'none';
+        }
+
+        function toggleTheme() {
+            var isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            updateThemeIcon(isDark);
+            if (volumeChart) volumeChart.update();
+        }
+
+        // Initialize Theme (Default Light)
+        var savedTheme = localStorage.getItem('theme');
+        var isDark = savedTheme === 'dark'; 
+        if (isDark) document.documentElement.classList.add('dark');
+        updateThemeIcon(isDark);
+        
+        var isPaused = false;
+        var activeBookmarks = {};
+        
+        function toggleBookmark(id, event) {
+            if (event && (event.target.closest('button') || event.target.closest('a') || event.target.closest('svg'))) {
+                return;
+            }
+            activeBookmarks[id] = !activeBookmarks[id];
+            var row = document.getElementById('row-' + id);
+            if (activeBookmarks[id]) {
+                row.classList.add('log-bookmarked');
+            } else {
+                row.classList.remove('log-bookmarked');
+            }
+        }
+        
+        function goToDate(dateStr) {
+            if (!dateStr) return;
+            var parts = dateStr.split('-');
+            if (parts.length === 3) {
+                var year = parts[0];
+                var month = parts[1];
+                var day = parts[2];
+                window.location.href = '/' + year + '/' + month + '/' + day;
+            }
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+            var btnText = document.getElementById("text-pause");
+            var iconPause = document.getElementById("icon-pause");
+            if (isPaused) {
+                btnText.innerText = "Resume";
+                iconPause.innerHTML = '<path d="M8 5v14l11-7z"/>';
+                statusDot.classList.replace("bg-emerald-500", "bg-yellow-500");
+                if (pingDot) pingDot.style.display = 'none';
+            } else {
+                btnText.innerText = "Pause";
+                iconPause.innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+                statusDot.classList.replace("bg-yellow-500", "bg-emerald-500");
+                if (pingDot) pingDot.style.display = 'inline-flex';
+            }
+        }
+        
+        function updateLevelButtons() {
+            ['info', 'warning', 'error'].forEach(lvl => {
+                var btn = document.getElementById('btn-' + lvl);
+                if (activeLevels[lvl]) {
+                    btn.classList.remove('opacity-50');
+                } else {
+                    btn.classList.add('opacity-50');
+                }
+            });
+        }
+        updateLevelButtons();
+
+        function toggleLevel(level) {
+            activeLevels[level] = !activeLevels[level];
+            updateLevelButtons();
+            applyFilters();
+        }
+
+        function clearFilters() {
+            searchInput.value = '';
+            activeLevels = { info: true, warning: true, error: true };
+            updateLevelButtons();
+            applyFilters();
+        }
+
+        searchInput.addEventListener('input', applyFilters);
+
+        function applyFilters() {
+            var term = searchInput.value;
+            var isRegex = term.startsWith('/') && term.endsWith('/');
+            var regex = null;
+            if (isRegex && term.length > 2) {
+                try {
+                    regex = new RegExp(term.slice(1, -1), 'i');
+                } catch(e) {}
+            } else {
+                term = term.toLowerCase();
+            }
+            
+            var rows = document.querySelectorAll('.log-entry-row');
+            rows.forEach(row => {
+                var lvl = row.getAttribute('data-level');
+                var text = row.getAttribute('data-raw');
+                
+                var showLevel = activeLevels[lvl] !== false; 
+                var showText = true;
+                if (term !== '') {
+                    if (regex) {
+                        showText = regex.test(text);
+                    } else {
+                        showText = text.toLowerCase().includes(term);
+                    }
+                }
+                
+                if (showLevel && showText) {
+                    row.style.display = 'flex';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+        
+        function exportLogs() {
+            var rows = document.querySelectorAll('.log-entry-row');
+            var csvContent = "data:text/csv;charset=utf-8,Level,Message\\n";
+            rows.forEach(row => {
+                if (row.style.display !== 'none') {
+                    var lvl = row.getAttribute('data-level');
+                    var raw = row.getAttribute('data-raw');
+                    var escapedRaw = raw.replace(/"/g, '""');
+                    csvContent += `"${lvl}","${escapedRaw}"\\n`;
+                }
+            });
+            var encodedUri = encodeURI(csvContent);
+            var link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "logs_export.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function toggleJson(id) {
+            activeJsonState[id] = !activeJsonState[id];
+            var el = document.getElementById('json-' + id);
+            var icon = document.getElementById('icon-' + id);
+            if (activeJsonState[id]) {
+                el.style.display = 'block';
+                icon.style.transform = 'rotate(90deg)';
+            } else {
+                el.style.display = 'none';
+                icon.style.transform = 'rotate(0deg)';
+            }
+        }
+        
+        function copyJson(id) {
+            var el = document.getElementById('json-content-' + id);
+            navigator.clipboard.writeText(el.innerText).then(() => {
+                var btn = document.getElementById('copy-btn-' + id);
+                var originalHtml = btn.innerHTML;
+                btn.innerHTML = '<svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><span class="text-[10px] text-emerald-400 font-sans">Copied</span>';
+                setTimeout(() => { btn.innerHTML = originalHtml; }, 2000);
+            });
+        }
+
+        wsLog.onopen = function() {
+            statusDot.classList.replace("bg-neutral-500", "bg-emerald-500");
+        };
+
+        wsLog.onmessage = function (event) {
+            if (isPaused) return;
+            
+            if (loadingState) {
+                loadingState.style.display = 'none';
+            }
+            
+            // Prevent DOM flicker if nothing changed
+            if (event.data === lastPayload) {
+                return;
+            }
+            lastPayload = event.data;
+            
+            try {
+                var logs = JSON.parse(event.data);
+                
+                // Chart Data Aggregation
+                var newInfo = 0, newWarn = 0, newErr = 0;
+                var foundLast = false;
+                
+                for (var i = logs.length - 1; i >= 0; i--) {
+                    var log = logs[i];
+                    var id = hashStr(log.raw + log.level);
+                    if (id === lastSeenId) {
+                        foundLast = true;
+                        newInfo = 0; newWarn = 0; newErr = 0; 
+                        continue; 
+                    }
+                    if (foundLast || lastSeenId === null) {
+                        if (log.level === 'info') newInfo++;
+                        else if (log.level === 'warning') newWarn++;
+                        else if (log.level === 'error') newErr++;
+                    }
+                }
+                
+                if (logs.length > 0) {
+                    lastSeenId = hashStr(logs[0].raw + logs[0].level);
+                }
+                
+                chartDataInfo.shift(); chartDataInfo.push(newInfo);
+                chartDataWarn.shift(); chartDataWarn.push(newWarn);
+                chartDataErr.shift(); chartDataErr.push(newErr);
+                chartLabels.shift(); chartLabels.push('');
+                volumeChart.update();
+
+                var html = '';
+                
+                logs.forEach((log) => {
+                    var badgeClass = 'log-badge-' + log.level;
+                    var barClass = 'log-bar-' + log.level;
+                    var id = hashStr(log.raw + log.level);
+                    
+                    var messageHtml = log.message;
+                    if (log.is_image) {
+                        messageHtml += ` <a href="javascript:void(0)" onclick="openImageModal('${log.image_path}')" class="text-grafana-info hover:text-blue-400 hover:underline ml-2">📷 View Image</a>`;
+                    }
+                    if (log.is_json_file) {
+                        messageHtml += ` <a href="javascript:void(0)" onclick="openJsonModal('${log.json_file_path}')" class="text-grafana-warn hover:text-yellow-400 hover:underline ml-2">📄 View JSON File</a>`;
+                    }
+                    
+                    var isJsonOpen = activeJsonState[id];
+                    var isBookmarked = activeBookmarks[id] ? 'log-bookmarked' : '';
+                    var chevronTransform = isJsonOpen ? 'rotate(90deg)' : 'rotate(0deg)';
+                    
+                    var chevron = log.json_data ? `
+                        <svg id="icon-${id}" style="transform: ${chevronTransform};" class="w-3.5 h-3.5 text-grafana-muted cursor-pointer transition-transform duration-200 mr-2 shrink-0 hover:text-grafana-strong" fill="none" stroke="currentColor" viewBox="0 0 24 24" onclick="toggleJson('${id}')">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    ` : `<div class="w-3.5 mr-2 shrink-0"></div>`; 
+
+                    var jsonHtml = '';
+                    if (log.json_data) {
+                        var prettyJson = JSON.stringify(log.json_data, null, 2);
+                        var displayStyle = isJsonOpen ? 'block' : 'none';
+                        jsonHtml = `
+                            <div id="json-${id}" style="display:${displayStyle};" class="ml-16 mt-2 mb-2 bg-grafana-panel border border-grafana-border rounded text-xs font-mono overflow-hidden text-grafana-text relative group cursor-auto">
+                                <div class="flex justify-end p-1.5 bg-grafana-bg border-b border-grafana-border">
+                                    <button id="copy-btn-${id}" onclick="copyJson('${id}')" class="flex items-center gap-1 text-grafana-muted hover:text-grafana-strong transition-colors p-1 rounded hover:bg-grafana-hover">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                        </svg>
+                                        <span class="text-[10px] font-sans">Copy</span>
+                                    </button>
+                                </div>
+                                <div class="p-3 overflow-x-auto">
+                                    <pre id="json-content-${id}">${prettyJson}</pre>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    var escapedRaw = log.raw.replace(/"/g, '&quot;');
+
+                    html += `
+                        <div id="row-${id}" onclick="toggleBookmark('${id}', event)" class="log-entry-row flex flex-col w-full px-4 py-1.5 log-row border-l-4 ${barClass} ${isBookmarked} cursor-pointer" data-level="${log.level}" data-raw="${escapedRaw}">
+                            <div class="flex items-start w-full font-mono text-[13px] leading-relaxed">
+                                <div class="flex items-center shrink-0 w-24 pt-0.5">
+                                    ${chevron}
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${badgeClass}">${log.level}</span>
+                                </div>
+                                <div class="flex-grow break-all ml-2 text-grafana-text">
+                                    ${messageHtml}
+                                </div>
+                            </div>
+                            ${jsonHtml}
+                        </div>
+                    `;
+                });
+                
+                logsList.innerHTML = html;
+                applyFilters();
+                
+            } catch (e) {
+                console.error("Error parsing JSON log data", e);
+            }
+        };
+
+        wsLog.onerror = function() {
+            statusDot.classList.replace("bg-emerald-500", "bg-red-500");
+            if (pingDot) pingDot.style.display = 'none';
+        };
+
+        wsLog.onclose = function() {
+            statusDot.classList.replace("bg-emerald-500", "bg-grafana-muted");
+            if (pingDot) pingDot.style.display = 'none';
+        };
+    </script>
 </body>
-<script>
-    var currentLocation = window.location.href;
-    var wsURL = "ws://" + window.location.hostname + ":" + window.location.port + "/ws/log";
-
-    var wsLog = new WebSocket(wsURL);
-
-    wsLog.onmessage = function (event) {
-        var logs = document.getElementById("logs");
-        var log_data = event.data;
-        logs.innerHTML = log_data;
-        logs.scrollTop =logs.scrollHeight;
-
-    };
-</script>
 </html>

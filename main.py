@@ -8,14 +8,17 @@ from fastapi.responses import FileResponse
 
 import uvicorn
 import asyncio
+import collections
+import json
+import ast
 
 # set path and log file name
 base_dir = Path(__file__).resolve().parent
 
-base_log_dir = f'{os.getenv("HOME")}/Logger/Master'
+base_log_dir = os.getenv("LOG_DIR", f'{os.getenv("HOME")}/Logger/Master')
 log_file = "logging.log"
 
-base_image_dir = f'{os.getenv("HOME")}/Camera/Captures'
+base_image_dir = os.getenv("IMAGE_DIR", f'{os.getenv("HOME")}/Camera/Captures')
 # create fastapi instance
 app = FastAPI()
 
@@ -23,41 +26,108 @@ app = FastAPI()
 templates = Jinja2Templates(directory=str(Path(base_dir, "static")))
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-async def log_reader(n=5) -> list:
+async def log_reader(log_file_path: str, n=100) -> str:
     """Log reader
 
     Args:
-        n (int, optional): number of lines to read from file. Defaults to 5.
+        log_file_path (str): Path to log file.
+        n (int, optional): number of lines to read from file. Defaults to 100.
 
     Returns:
-        list: List containing last n-lines in log file with html tags.
+        str: JSON string of parsed log entries.
     """
-    log_lines = []
-    if not log_file:
-        return "None"
-    with open(f"{base_log_dir}/{log_file}", "r") as file:
-        for line in file.readlines():
-            if line.__contains__("ERROR"):
-                log_lines.append(f'<span style="color: red;">{line}</span><br/>')
-            elif line.__contains__("WARNING"):
-                log_lines.append(f'<span style="color: orange;"">{line}</span><br/>')
-            elif line.__contains__('jpg'):
-                image_path = line.split(":")[-1].strip()
-                image_path = image_path.replace(base_image_dir, '')
-                image_path = image_path.replace('//', '/')
-                log_lines.append(f'<a href="{image_path}" target="_blank">{line}</a><br/>')
-            else:
-                log_lines.append(f"{line}<br/>")
-    return log_lines
+    if not log_file_path:
+        return json.dumps([{"level": "info", "message": "None", "raw": "None"}])
+        
+    full_path = f"{base_log_dir}/{log_file_path}"
+    if not os.path.isfile(full_path):
+        return json.dumps([{"level": "error", "message": "Log file not found.", "raw": "Log file not found."}])
+        
+    with open(full_path, "r") as file:
+        lines = collections.deque(file, maxlen=n)
+        
+    parsed_lines = []
+    for line in lines:
+        log_level = "info"
+        if "ERROR" in line:
+            log_level = "error"
+        elif "WARNING" in line:
+            log_level = "warning"
+            
+        is_image = False
+        image_path = None
+        is_json_file = False
+        json_file_path = None
+        
+        if 'jpg' in line:
+            is_image = True
+            image_path_raw = line.split(":")[-1].strip()
+            image_path = image_path_raw.replace(base_image_dir, '').replace('//', '/')
+        elif '.json' in line and 'path' in line.lower():
+            is_json_file = True
+            json_path_raw = line.split(":")[-1].strip()
+            json_file_path = json_path_raw.replace(base_image_dir, '').replace('//', '/')
+            
+        json_data = None
+        message = line.strip()
+        
+        start_idx = line.find('{')
+        end_idx = line.rfind('}')
+        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+            dict_str = line[start_idx:end_idx+1]
+            try:
+                json_obj = json.loads(dict_str)
+                json_data = json_obj
+                message = line[:start_idx].strip()
+            except json.JSONDecodeError:
+                try:
+                    json_obj = ast.literal_eval(dict_str)
+                    if isinstance(json_obj, dict):
+                        json_data = json_obj
+                        message = line[:start_idx].strip()
+                except (SyntaxError, ValueError):
+                    pass
+                    
+            if isinstance(json_data, dict):
+                for k, v in json_data.items():
+                    if isinstance(v, str) and v.strip().startswith('{') and v.strip().endswith('}'):
+                        try:
+                            json_data[k] = json.loads(v)
+                        except json.JSONDecodeError:
+                            pass
+                
+        parsed_lines.append({
+            "level": log_level,
+            "message": message,
+            "json_data": json_data,
+            "is_image": is_image,
+            "image_path": image_path,
+            "is_json_file": is_json_file,
+            "json_file_path": json_file_path,
+            "raw": line.strip()
+        })
+        
+    parsed_lines.reverse()
+    return json.dumps(parsed_lines)
 
 
 @app.get("/")
 async def get(request: Request) -> templates.TemplateResponse:
-    global log_file
     log_file = "logging.log"
-
     context = {"title": "SMARTCAM Log Viewer", "log_file": log_file}
     return templates.TemplateResponse("index.html", {"request": request, "context": context})
+
+@app.get("/history")
+async def get_history(request: Request) -> templates.TemplateResponse:
+    dates = []
+    if os.path.exists(base_log_dir):
+        for root, dirs, files in os.walk(base_log_dir):
+            rel_path = os.path.relpath(root, base_log_dir)
+            parts = rel_path.split(os.sep)
+            if len(parts) == 3 and all(p.isdigit() for p in parts):
+                dates.append(rel_path.replace(os.sep, '/'))
+    dates.sort(reverse=True)
+    return templates.TemplateResponse("history.html", {"request": request, "dates": dates})
 
 @app.get("/{year}/{month}/{day}")
 async def get(
@@ -84,8 +154,7 @@ async def get(
         name: str,
         request: Request
     ) -> templates.TemplateResponse:
-    global log_file
-    log_file  = f'/{year}/{month}/{day}/{name}'
+    log_file = f'{year}/{month}/{day}/{name}'
     context = {"title": "SMARTCAM Log Viewer", "log_file": log_file}
     return templates.TemplateResponse("index.html", {"request": request, "context": context})
 
@@ -105,23 +174,27 @@ async def get(
     return FileResponse(image_file)
 
 @app.websocket("/ws/log")
-async def websocket_endpoint_log(websocket: WebSocket) -> None:
+async def websocket_endpoint_log(websocket: WebSocket, file: str = "logging.log") -> None:
     """WebSocket endpoint for client connections
 
     Args:
         websocket (WebSocket): WebSocket request from client.
+        file (str): Log file to stream
     """
     await websocket.accept()
 
     try:
         while True:
             await asyncio.sleep(2)
-            logs = await log_reader(100)
-            await websocket.send_text(logs)
+            logs_json = await log_reader(file, 100)
+            await websocket.send_text(logs_json)
     except Exception as e:
         print(e)
     finally:
-        await websocket.close()
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
 # set parameters to run uvicorn
 if __name__ == "__main__":
