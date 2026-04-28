@@ -120,28 +120,28 @@
     </div>
 
     <!-- Top Navigation Bar -->
-    <header class="border-b border-grafana-border bg-grafana-bg h-14 flex items-center justify-between px-4 shrink-0">
-        <div class="flex items-center gap-4">
+    <header class="border-b border-grafana-border bg-grafana-bg min-h-[3.5rem] py-2 flex flex-wrap items-center justify-between px-4 shrink-0 gap-3">
+        <div class="flex flex-wrap items-center gap-2 sm:gap-4">
             <a href="/history" class="text-grafana-muted hover:text-grafana-strong transition-colors" title="Browse History">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
             </a>
-            <input type="date" id="date-picker" onchange="goToDate(this.value)" class="bg-grafana-panel border border-grafana-border text-grafana-muted text-xs rounded px-2 py-1 focus:outline-none focus:border-grafana-info transition-colors cursor-pointer" title="Jump to Date">
+            <input type="date" id="date-picker" onchange="goToDate(this.value)" class="bg-grafana-panel border border-grafana-border text-grafana-muted text-xs rounded px-2 py-1 focus:outline-none focus:border-grafana-info transition-colors cursor-pointer w-32 sm:w-auto" title="Jump to Date">
             
-            <button onclick="toggleTheme()" class="p-1.5 text-grafana-muted hover:text-grafana-strong transition-colors bg-grafana-panel border border-grafana-border rounded ml-2" title="Toggle Theme">
+            <button onclick="toggleTheme()" class="p-1.5 text-grafana-muted hover:text-grafana-strong transition-colors bg-grafana-panel border border-grafana-border rounded sm:ml-2" title="Toggle Theme">
                 <svg id="icon-theme-light" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
                 <svg id="icon-theme-dark" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
             </button>
-            <div class="h-6 w-px bg-grafana-border mx-2"></div>
+            <div class="h-6 w-px bg-grafana-border mx-1 sm:mx-2"></div>
 
-            <svg class="w-6 h-6 text-grafana-warn" viewBox="0 0 24 24" fill="currentColor">
+            <svg class="w-5 h-5 sm:w-6 sm:h-6 text-grafana-warn" viewBox="0 0 24 24" fill="currentColor">
                 <!-- A placeholder icon looking a bit like Grafana -->
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/>
             </svg>
-            <h1 class="text-sm font-semibold tracking-wide text-grafana-strong">Explore Logs</h1>
-            <div class="h-6 w-px bg-grafana-border mx-2"></div>
-            <span class="text-xs font-mono text-grafana-muted bg-grafana-panel px-2 py-1 border border-grafana-border rounded" title="{{context.log_file}}">
+            <h1 class="text-xs sm:text-sm font-semibold tracking-wide text-grafana-strong">Explore Logs</h1>
+            <div class="h-6 w-px bg-grafana-border mx-1 sm:mx-2"></div>
+            <span class="text-[10px] sm:text-xs font-mono text-grafana-muted bg-grafana-panel px-1.5 sm:px-2 py-1 border border-grafana-border rounded truncate max-w-[120px] sm:max-w-[300px]" title="{{context.log_file}}">
                 {{context.log_file}}
             </span>
         </div>
@@ -161,23 +161,25 @@
     </header>
 
     <!-- Query/Filter Bar -->
-    <div class="border-b border-grafana-border bg-grafana-panel px-4 py-3 shrink-0 flex items-center gap-4">
-        <div class="flex-grow flex items-center relative">
+    <div class="border-b border-grafana-border bg-grafana-panel px-4 py-3 shrink-0 flex flex-col md:flex-row md:items-center gap-3">
+        <div class="flex-grow flex items-center relative w-full">
             <svg class="w-4 h-4 absolute left-3 text-grafana-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
             </svg>
             <input type="text" id="search-input" placeholder="Filter by message..." class="w-full bg-grafana-bg border border-grafana-border text-grafana-text text-sm rounded px-10 py-1.5 focus:outline-none focus:border-grafana-info focus:ring-1 focus:ring-grafana-info transition-all font-mono">
         </div>
-        <div class="flex gap-1 bg-grafana-bg p-0.5 rounded border border-grafana-border shrink-0">
-            <button onclick="toggleLevel('info')" id="btn-info" class="px-3 py-1 text-xs font-medium rounded log-badge-info opacity-50 hover:opacity-100 transition-opacity">Info</button>
-            <button onclick="toggleLevel('warning')" id="btn-warning" class="px-3 py-1 text-xs font-medium rounded log-badge-warning opacity-50 hover:opacity-100 transition-opacity">Warning</button>
-            <button onclick="toggleLevel('error')" id="btn-error" class="px-3 py-1 text-xs font-medium rounded log-badge-error opacity-50 hover:opacity-100 transition-opacity">Error</button>
+        <div class="flex flex-wrap items-center gap-2">
+            <div class="flex gap-1 bg-grafana-bg p-0.5 rounded border border-grafana-border shrink-0">
+                <button onclick="toggleLevel('info')" id="btn-info" class="px-3 py-1 text-xs font-medium rounded log-badge-info opacity-50 hover:opacity-100 transition-opacity">Info</button>
+                <button onclick="toggleLevel('warning')" id="btn-warning" class="px-3 py-1 text-xs font-medium rounded log-badge-warning opacity-50 hover:opacity-100 transition-opacity">Warn</button>
+                <button onclick="toggleLevel('error')" id="btn-error" class="px-3 py-1 text-xs font-medium rounded log-badge-error opacity-50 hover:opacity-100 transition-opacity">Error</button>
+            </div>
+            <button onclick="clearFilters()" class="text-xs text-grafana-info hover:text-blue-400 transition-colors ml-1">Clear</button>
+            <button onclick="exportLogs()" class="text-xs flex items-center gap-1 text-grafana-muted hover:text-grafana-strong transition-colors bg-grafana-panel border border-grafana-border px-2 py-1 rounded ml-auto md:ml-1 shrink-0">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Export CSV
+            </button>
         </div>
-        <button onclick="clearFilters()" class="text-xs text-grafana-info hover:text-blue-400 transition-colors">Clear</button>
-        <button onclick="exportLogs()" class="text-xs flex items-center gap-1 text-grafana-muted hover:text-grafana-strong transition-colors bg-grafana-panel border border-grafana-border px-2 py-1 rounded ml-2">
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-            Export CSV
-        </button>
     </div>
     
     <!-- Log Volume Chart -->
@@ -635,13 +637,17 @@
                     var escapedRaw = log.raw.replace(/"/g, '&quot;');
 
                     html += `
-                        <div id="row-${id}" onclick="toggleBookmark('${id}', event)" class="log-entry-row flex flex-col w-full px-4 py-1.5 log-row border-l-4 ${barClass} ${isBookmarked} cursor-pointer" data-level="${log.level}" data-raw="${escapedRaw}">
-                            <div class="flex items-start w-full font-mono text-[13px] leading-relaxed">
-                                <div class="flex items-center shrink-0 w-24 pt-0.5">
+                        <div id="row-${id}" onclick="toggleBookmark('${id}', event)" class="log-entry-row flex flex-col w-full px-2 sm:px-4 py-1.5 sm:py-2 log-row border-l-4 ${barClass} ${isBookmarked} cursor-pointer" data-level="${log.level}" data-raw="${escapedRaw}">
+                            <div class="flex flex-col md:flex-row md:items-start w-full font-mono text-[11px] md:text-[13px] leading-relaxed">
+                                <div class="flex items-center shrink-0 w-full md:w-24 pt-0.5 mb-1 md:mb-0">
                                     ${chevron}
-                                    <span class="text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${badgeClass}">${log.level}</span>
+                                    <span class="font-medium text-grafana-text">${timeStr}</span>
+                                    <span class="${badgeClass} md:hidden inline-block ml-2 px-1.5 py-0.5 text-[9px] uppercase rounded border">${log.level}</span>
                                 </div>
-                                <div class="flex-grow break-all ml-2 text-grafana-text">
+                                <div class="hidden md:block shrink-0 w-20 px-2 group-hover:opacity-100">
+                                    <span class="${badgeClass} block text-center uppercase text-[10px] font-bold py-0.5 px-1 rounded shadow-sm">${log.level}</span>
+                                </div>
+                                <div class="flex-grow break-all ml-4 md:ml-0 md:pl-2">
                                     ${messageHtml}
                                 </div>
                             </div>
