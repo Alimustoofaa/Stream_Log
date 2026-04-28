@@ -1,10 +1,11 @@
 import os
 import glob
 from pathlib import Path
-from fastapi import FastAPI, WebSocket, Request
+from fastapi import FastAPI, WebSocket, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import FileResponse
+import urllib.parse
 
 import uvicorn
 import asyncio
@@ -147,6 +148,12 @@ async def get(
         "log_files.html",
         {"request": request, "year": year, "month": month, "day": day, "log_files": log_files},
     )
+@app.get("/api/download")
+async def download_log(file: str = "logging.log"):
+    file_path = os.path.join(base_log_dir, urllib.parse.unquote(file))
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail="Log file not found")
+    return FileResponse(file_path, filename=os.path.basename(file_path))
 
 @app.get("/{year}/{month}/{day}/{name}")
 async def get(
