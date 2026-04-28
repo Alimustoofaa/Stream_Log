@@ -188,12 +188,12 @@
     </div>
 
     <!-- Logs Container -->
-    <main class="flex-grow overflow-y-auto bg-grafana-bg flex flex-col relative" id="logs-container">
+    <main class="flex-grow overflow-y-auto overflow-x-auto bg-grafana-bg flex flex-col relative" id="logs-container">
         <div class="flex items-center justify-center h-full text-grafana-muted text-sm" id="loading-state">
             Waiting for logs...
         </div>
         <!-- Logs will be appended here -->
-        <div id="logs-list" class="flex flex-col w-full pb-4"></div>
+        <div id="logs-list" class="flex flex-col w-full min-w-max pb-4"></div>
     </main>
 
     <script>
@@ -618,12 +618,12 @@
 
                     html += `
                         <div id="row-${id}" onclick="toggleBookmark('${id}', event)" class="log-entry-row flex flex-col w-full px-2 sm:px-4 py-1.5 sm:py-2 log-row border-l-4 ${barClass} ${isBookmarked} cursor-pointer" data-level="${log.level}" data-raw="${escapedRaw}">
-                            <div class="flex flex-col md:flex-row md:items-start w-full font-mono text-[9px] sm:text-[11px] md:text-[13px] leading-relaxed">
-                                <div class="flex items-center shrink-0 w-full md:w-24 pt-0.5 mb-1 md:mb-0">
+                            <div class="flex items-start w-full font-mono text-[9px] sm:text-[11px] md:text-[13px] leading-relaxed whitespace-nowrap">
+                                <div class="flex items-center shrink-0 w-16 sm:w-20 md:w-24 pt-0.5">
                                     ${chevron}
                                     <span class="text-[8px] md:text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${badgeClass}">${log.level}</span>
                                 </div>
-                                <div class="flex-grow break-all ml-4 md:ml-0 md:pl-2 text-grafana-text">
+                                <div class="flex-grow pl-1 sm:pl-2 text-grafana-text">
                                     ${messageHtml}
                                 </div>
                             </div>
