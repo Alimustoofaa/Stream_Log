@@ -27,12 +27,11 @@ app = FastAPI()
 templates = Jinja2Templates(directory=str(Path(base_dir, "static")))
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-async def log_reader(log_file_path: str, n=100) -> str:
+async def log_reader(log_file_path: str) -> str:
     """Log reader
 
     Args:
         log_file_path (str): Path to log file.
-        n (int, optional): number of lines to read from file. Defaults to 100.
 
     Returns:
         str: JSON string of parsed log entries.
@@ -45,7 +44,7 @@ async def log_reader(log_file_path: str, n=100) -> str:
         return json.dumps([{"level": "error", "message": "Log file not found.", "raw": "Log file not found."}])
         
     with open(full_path, "r") as file:
-        lines = collections.deque(file, maxlen=n)
+        lines = collections.deque(file)
         
     parsed_lines = []
     for line in lines:
@@ -195,7 +194,7 @@ async def websocket_endpoint_log(websocket: WebSocket, file: str = "logging.log"
     try:
         while True:
             await asyncio.sleep(2)
-            logs_json = await log_reader(file, 100)
+            logs_json = await log_reader(file)
             await websocket.send_text(logs_json)
     except Exception as e:
         print(e)
